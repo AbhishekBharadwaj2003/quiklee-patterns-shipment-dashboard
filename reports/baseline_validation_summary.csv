@@ -1,0 +1,4 @@
+Brand,Rows,Unique shipment IDs,Missing manifest date,Duplicate shipment IDs,Delivered,RTO Delivered,Cancelled,Other statuses,Completed outcomes,Delivery rate among completed outcomes (%),RTO rate among completed outcomes (%),Missing TAT
+Freely,100,100,0,0,97,1,2,0,98,98.9795918367347,1.0204081632653061,2
+Kotart,198,198,0,0,111,55,25,7,166,66.86746987951807,33.13253012048193,29
+BigBearFarms,2490,2490,0,0,2355,110,8,17,2465,95.53752535496957,4.462474645030426,22

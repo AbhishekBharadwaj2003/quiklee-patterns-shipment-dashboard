@@ -1,0 +1,18 @@
+Brand,Shipment status,Rows
+Freely,Delivered,97
+Freely,Cancelled,2
+Freely,RTO Delivered,1
+Kotart,Delivered,111
+Kotart,RTO Delivered,55
+Kotart,Cancelled,25
+Kotart,RTO In Transit,5
+Kotart,Undelivered,1
+Kotart,Order Placed,1
+BigBearFarms,Delivered,2355
+BigBearFarms,RTO Delivered,110
+BigBearFarms,RTO Out for Delivery,9
+BigBearFarms,Cancelled,8
+BigBearFarms,RTO In Transit,3
+BigBearFarms,Seller RTO Requested,3
+BigBearFarms,RTO Failed,1
+BigBearFarms,Damaged,1
