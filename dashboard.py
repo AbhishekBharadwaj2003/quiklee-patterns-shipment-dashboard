@@ -274,6 +274,9 @@ if page=="Executive Overview":
         current_day = comparison_base[comparison_base["manifest_date"].eq(selected_date)]
         previous_day = comparison_base[comparison_base["manifest_date"].eq(previous_date)]
         show_day_over_day(current_day, previous_day)
+    else:
+        # For "All dates", show aggregate KPI values without day-over-day deltas.
+        show_kpis(filtered)
     left,right=st.columns([1.4,1])
     with left:
         daily=daily_manifest_summary(filtered)
