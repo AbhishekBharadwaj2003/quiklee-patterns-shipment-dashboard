@@ -135,6 +135,55 @@ if date_basis=="Manifesting date" and selected_date is not None:
 
 
 def rate_text(v): return "N/A" if pd.isna(v) else f"{v:.2f}%"
+def show_day_over_day(current_df, previous_df):
+    """Show selected manifest date compared with the previous calendar day."""
+    current = kpis(current_df)
+    previous = kpis(previous_df)
+
+    def delta_text(current_value, previous_value, suffix=""):
+        if pd.isna(current_value) or pd.isna(previous_value):
+            return "N/A"
+        if previous_value == 0:
+            return "New" if current_value > 0 else "0.0%"
+        change = (current_value - previous_value) / abs(previous_value) * 100
+        return f"{change:+.1f}%{suffix}"
+
+    st.markdown("#### Day-over-day comparison")
+    st.caption("Selected manifest date vs previous calendar day, using the same brand filters.")
+    specs = [
+        ("Total shipments", "total", "normal"),
+        ("Delivered", "delivered", "normal"),
+        ("RTO delivered", "rto", "inverse"),
+        ("Cancelled", "cancelled", "inverse"),
+        ("Delivery rate", "delivery_rate", "normal"),
+        ("RTO rate", "rto_rate", "inverse"),
+    ]
+    cols = st.columns(len(specs))
+    for col, (label, key, direction) in zip(cols, specs):
+        now, before = current[key], previous[key]
+        if pd.isna(now):
+            value = "N/A"
+        elif key.endswith("_rate"):
+            value = f"{now:.2f}%"
+        else:
+            value = f"{int(now):,}"
+        if pd.isna(now) or pd.isna(before):
+            delta = None
+        elif before == 0:
+            delta = "New" if now > 0 else "0.0%"
+        elif key.endswith("_rate"):
+            # Rate change is reported in percentage points, not relative percent.
+            delta = f"{now - before:+.2f} pp"
+        else:
+            delta = delta_text(now, before)
+        col.metric(label, value, delta=delta, delta_color=direction)
+    st.caption(
+        f"Previous day: {len(previous_df):,} shipment records. "
+        "Rate changes are shown in percentage points; count changes are relative percentages. "
+        "If the previous day's count is zero, a percentage change is undefined."
+    )
+
+
 def show_kpis(df):
     m=kpis(df); cols=st.columns(6)
     items=[("Manifested",m["total"]),("Delivered",m["delivered"]),("RTO Delivered",m["rto"]),("Cancelled",m["cancelled"]),("Delivery rate*",rate_text(m["delivery_rate"])),("RTO rate*",rate_text(m["rto_rate"]))]
@@ -233,6 +282,15 @@ def chatbot_answer(q, df):
 
 if page=="Executive Overview":
     st.subheader("Executive overview")
+    if date_basis == "Manifesting date" and selected_date is not None:
+        comparison_base = analysis_data[
+            analysis_data["Brand"].isin(selected_brands)
+        ].copy() if selected_brands and "Brand" in analysis_data else analysis_data.iloc[0:0].copy()
+        comparison_base["manifest_date"] = pd.to_datetime(comparison_base["manifest_date"], errors="coerce").dt.normalize()
+        previous_date = selected_date - pd.Timedelta(days=1)
+        current_day = comparison_base[comparison_base["manifest_date"].eq(selected_date)]
+        previous_day = comparison_base[comparison_base["manifest_date"].eq(previous_date)]
+        show_day_over_day(current_day, previous_day)
     show_kpis(filtered)
     left,right=st.columns([1.4,1])
     with left:
