@@ -224,8 +224,6 @@ def chatbot_answer(q, df):
 
     return "I can answer shipment/status counts, delivery and RTO rates, courier rankings, state-courier comparisons, and rule-based recommendations. Try: 'summarize Freely', 'best courier for Kotart', 'show state courier performance', or 'recommend improvements'. This is a local rule-based assistant, not a generative AI model."
 
-st.title("Quiklee Patterns | Shipment Intelligence")
-st.caption("September 2026 baseline extracts · Brand-wise operations · Courier performance · Data quality")
 
 if page=="Executive Overview":
     st.subheader("Executive overview")
