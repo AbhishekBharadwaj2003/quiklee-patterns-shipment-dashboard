@@ -264,6 +264,7 @@ def chatbot_answer(q, df):
 
 
 if page=="Executive Overview":
+    st.subheader("Executive overview")
     if date_basis == "Manifesting date" and selected_date is not None:
         comparison_base = analysis_data[
             analysis_data["Brand"].isin(selected_brands)
