@@ -54,8 +54,8 @@ except Exception as e:
     st.error(f"Could not initialize the dashboard: {e}"); st.stop()
 
 # Main dashboard header: Quiklee symbol + wordmark
-mark_path = BASE / "QUIKLEE_MARK.png"
-logo_path = BASE / "QUIKLEE_LOGO.jpg"
+mark_path = BASE / "data" / "QUIKLEE_MARK.png"
+logo_path = BASE / "data" / "QUIKLEE_LOGO.jpg"
 header_brand, header_title = st.columns([1.35, 2.65], vertical_alignment="center")
 with header_brand:
     mark_col, word_col = st.columns([1, 2.4], vertical_alignment="center")
