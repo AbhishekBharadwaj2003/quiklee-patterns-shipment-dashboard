@@ -53,15 +53,21 @@ try:
 except Exception as e:
     st.error(f"Could not initialize the dashboard: {e}"); st.stop()
 
-# Main dashboard header: official Quiklee branding
+# Main dashboard header: Quiklee symbol + wordmark
+mark_path = BASE / "QUIKLEE_MARK.png"
 logo_path = BASE / "QUIKLEE_LOGO.jpg"
-header_logo, header_title = st.columns([1.35, 2.65], vertical_alignment="center")
-with header_logo:
-    if logo_path.exists():
-        st.image(str(logo_path), use_container_width=True)
-    else:
-        st.markdown("## QUIKLEE")
-        st.caption("FUTURE STORES")
+header_brand, header_title = st.columns([1.35, 2.65], vertical_alignment="center")
+with header_brand:
+    mark_col, word_col = st.columns([1, 2.4], vertical_alignment="center")
+    with mark_col:
+        if mark_path.exists():
+            st.image(str(mark_path), use_container_width=True)
+    with word_col:
+        if logo_path.exists():
+            st.image(str(logo_path), use_container_width=True)
+        else:
+            st.markdown("## QUIKLEE")
+            st.caption("FUTURE STORES")
 with header_title:
     st.title("Patterns Shipment Intelligence")
     st.caption("Freely · Kotart · BigBearFarms")
