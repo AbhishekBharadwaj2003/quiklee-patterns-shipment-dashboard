@@ -286,7 +286,26 @@ if page=="Executive Overview":
     with right:
         if not filtered.empty:
             counts=filtered["shipment_status"].value_counts().rename_axis("Status").reset_index(name="Shipments")
-            st.plotly_chart(px.pie(counts,names="Status",values="Shipments",hole=.55,title="Latest status mix in selected records"),use_container_width=True)
+            status_fig = px.pie(
+                counts,
+                names="Status",
+                values="Shipments",
+                hole=.55,
+                title="Latest status mix in selected records"
+            )
+            status_fig.update_layout(
+                title=dict(text="Latest status mix in selected records", x=0.5, xanchor="center"),
+                margin=dict(t=85, b=35, l=25, r=25),
+                legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02),
+                uniformtext_minsize=10,
+                uniformtext_mode="hide"
+            )
+            status_fig.update_traces(
+                textposition="inside",
+                textinfo="percent",
+                insidetextorientation="horizontal"
+            )
+            st.plotly_chart(status_fig, use_container_width=True)
     st.subheader("Brand-wise KPI comparison")
     bs=brand_summary(filtered)
     if not bs.empty:
