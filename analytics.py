@@ -178,17 +178,32 @@ def recommendation_rules(df: pd.DataFrame, brand: str, selected_date=None) -> li
 
 
 def forecast_daily_volume(df: pd.DataFrame, brand: str, horizon: int = 7) -> pd.DataFrame:
-    """Transparent baseline forecast: trailing 7-calendar-day mean. Not a seasonal model."""
-    d=df[df["Brand"].eq(brand)].dropna(subset=["manifest_date"])
-    if d.empty: return pd.DataFrame(columns=["Date","Forecast shipments","Method"])
-    daily=d.groupby("manifest_date").size().sort_index()
-    idx=pd.date_range(daily.index.min(), daily.index.max(), freq="D")
-    daily=daily.reindex(idx,fill_value=0)
-    if len(daily)<7:
-        value=float(daily.mean()) if len(daily) else 0.0
-        method="Historical mean baseline (fewer than 7 days)"
-    else:
-        value=float(daily.tail(7).mean())
-        method="Trailing 7-calendar-day mean baseline"
-    future=pd.date_range(daily.index.max()+pd.Timedelta(days=1), periods=horizon, freq="D")
-    return pd.DataFrame({"Date":future,"Forecast shipments":[round(value,2)]*horizon,"Method":method})
+    """Weekday-aware baseline using historical same-weekday averages when supported.
+
+    At least two historical observations for a weekday are required; otherwise
+    that date falls back to the recent 7-calendar-day mean. This is a transparent
+    baseline, not a validated seasonal forecasting model.
+    """
+    columns=["Date","Forecast shipments","Method"]
+    d=df[df["Brand"].eq(brand)].dropna(subset=["manifest_date"]).copy()
+    if d.empty or horizon < 1:
+        return pd.DataFrame(columns=columns)
+    d["manifest_date"]=pd.to_datetime(d["manifest_date"],errors="coerce").dt.normalize()
+    daily=d.dropna(subset=["manifest_date"]).groupby("manifest_date").size().sort_index()
+    if daily.empty:
+        return pd.DataFrame(columns=columns)
+    idx=pd.date_range(daily.index.min(),daily.index.max(),freq="D")
+    daily=daily.reindex(idx,fill_value=0).astype(float)
+    recent_mean=float(daily.tail(7).mean())
+    future=pd.date_range(daily.index.max()+pd.Timedelta(days=1),periods=int(horizon),freq="D")
+    rows=[]
+    for date in future:
+        same_weekday=daily[daily.index.dayofweek==date.dayofweek]
+        if len(same_weekday)>=2:
+            value=float(same_weekday.tail(8).mean())
+            method=f"Same-weekday historical mean ({len(same_weekday.tail(8))} observations)"
+        else:
+            value=recent_mean
+            method="Trailing 7-calendar-day mean fallback (insufficient weekday history)"
+        rows.append({"Date":date,"Forecast shipments":round(max(0.0,value),2),"Method":method})
+    return pd.DataFrame(rows,columns=columns)
