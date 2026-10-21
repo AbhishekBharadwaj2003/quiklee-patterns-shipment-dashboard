@@ -311,10 +311,10 @@ elif page=="Forecasting":
     a,b=st.columns([1.4,1])
     with a:
         if not historical.empty: st.plotly_chart(px.line(historical,x="Date",y="Actual shipments",markers=True,title="Historical daily manifest volume"),use_container_width=True)
-        if not future.empty: st.plotly_chart(px.bar(future,x="Date",y="Forecast shipments",title="Baseline forecast (not a seasonal model)"),use_container_width=True)
+        if not future.empty: st.plotly_chart(px.line(future,x="Date",y="Forecast shipments",markers=True,title="Weekday-aware baseline forecast"),use_container_width=True)
     with b:
         st.markdown("#### Forecast output"); st.dataframe(future,use_container_width=True,hide_index=True)
-        st.info("Only about one month of baseline data is available. This is a transparent trailing-mean baseline, not a validated seasonal forecast. Accuracy should be evaluated as more daily data arrives.")
+        st.info("Forecasts use historical averages for the same weekday when at least two observations are available; otherwise they fall back to the recent 7-calendar-day mean. The dataset covers only about one month, so this is an interpretable baseline—not a validated seasonal model. Check data-quality spikes and evaluate forecast error as more daily data arrives.")
         st.download_button("Download forecast CSV",future.to_csv(index=False).encode("utf-8-sig"),"shipment_forecast.csv","text/csv")
 
 elif page=="Dataset Upload & Reports":
@@ -371,6 +371,6 @@ with st.expander("Metric definitions and known limitations"):
 - **Daily manifesting:** Grouped by `manifested_date`, not status date.
 - **Historical status limitation:** The source files are latest-status extracts. They cannot prove what status a shipment had on a prior date. Uploaded snapshots are preserved separately.
 - **TAT:** Unit and exact business definition are unconfirmed; the dashboard deliberately does not label it hours/days.
-- **Forecast:** Trailing mean baseline only; no seasonal claims are made from one month of data.
+- **Forecast:** Weekday-aware historical mean with a recent 7-day fallback when weekday history is sparse; this is a baseline, not a validated seasonal model.
 - **Courier comparisons:** Descriptive; volume thresholds reduce but do not eliminate small-sample instability or shipment-mix bias.
 """)
