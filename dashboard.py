@@ -189,6 +189,11 @@ def show_kpis(df):
     items=[("Manifested",m["total"]),("Delivered",m["delivered"]),("RTO Delivered",m["rto"]),("Cancelled",m["cancelled"]),("Delivery rate*",rate_text(m["delivery_rate"])),("RTO rate*",rate_text(m["rto_rate"]))]
     for c,(label,value) in zip(cols,items): c.metric(label,value)
     st.caption("* Delivery/RTO rate denominator = Delivered + RTO Delivered. Cancellation and other statuses are excluded from these rates.")
+    cols=st.columns(3)
+    for c,(label,key) in zip(cols,[("Mean manifest-to-pickup (days)","manifest_to_pickup_mean_days"),("Mean pickup-to-delivery (days)","pickup_to_delivery_mean_days"),("Mean delivery attempts","attempt_count_mean")]):
+        value=m[key]
+        c.metric(label,"N/A" if pd.isna(value) else f"{value:.2f}")
+    st.caption("Duration summaries exclude negative date differences. Missing dates and missing attempt counts are not imputed.")
 
 
 def download_buttons(df,brand_label,period_label,prefix="quiklee"):
@@ -323,6 +328,12 @@ if page=="Executive Overview":
                 insidetextorientation="horizontal"
             )
             st.plotly_chart(status_fig, use_container_width=True)
+    st.subheader("Timing and delivery attempts")
+    timing=kpis(filtered)
+    tcols=st.columns(4)
+    for c,(label,key) in zip(tcols,[("Median manifest-to-pickup (days)","manifest_to_pickup_median_days"),("Median pickup-to-delivery (days)","pickup_to_delivery_median_days"),("First-attempt shipments (%)","first_attempt_delivery_share"),("Shipments with 3+ attempts","high_attempt_shipments")]):
+        value=timing[key]
+        c.metric(label,"N/A" if pd.isna(value) else f"{value:.2f}")
     st.subheader("Brand-wise KPI comparison")
     bs=brand_summary(filtered)
     if not bs.empty:
@@ -350,6 +361,20 @@ elif page=="Brand Analysis":
         with b:
             status=df["shipment_status"].value_counts().rename_axis("Status").reset_index(name="Shipments")
             st.plotly_chart(px.bar(status,x="Status",y="Shipments",title="Latest shipment status counts"),use_container_width=True)
+        st.markdown("#### Timing and attempt-count distribution")
+        ca,cb=st.columns(2)
+        with ca:
+            durations=df[["manifest_to_pickup_days","pickup_to_delivery_days"]].melt(var_name="Metric",value_name="Days")
+            durations["Metric"]=durations["Metric"].map({"manifest_to_pickup_days":"Manifest-to-pickup","pickup_to_delivery_days":"Pickup-to-delivery"})
+            durations=durations[pd.to_numeric(durations["Days"],errors="coerce").ge(0)]
+            if not durations.empty:
+                st.plotly_chart(px.box(durations,x="Metric",y="Days",title="Shipment timing distributions"),use_container_width=True)
+        with cb:
+            if "attempt_count" in df and pd.to_numeric(df["attempt_count"],errors="coerce").notna().any():
+                attempts=pd.to_numeric(df["attempt_count"],errors="coerce").dropna().value_counts().sort_index().rename_axis("Attempt count").reset_index(name="Shipments")
+                st.plotly_chart(px.bar(attempts,x="Attempt count",y="Shipments",title="Delivery attempt count"),use_container_width=True)
+            else:
+                st.info("No recorded attempt_count values in this selection.")
         st.markdown("#### Courier breakdown")
         st.dataframe(courier_summary(df),use_container_width=True,hide_index=True)
         st.markdown("#### State breakdown")
@@ -486,6 +511,9 @@ with st.expander("Metric definitions and known limitations"):
 - **RTO rate:** RTO Delivered / (Delivered + RTO Delivered).
 - **Cancellation share:** Cancelled / all selected shipment records.
 - **Other statuses:** All statuses other than Delivered, RTO Delivered, and Cancelled. These are not assumed to be final outcomes.
+- **Manifest-to-pickup time:** `pickup_date - manifested_date`, in calendar days. Negative differences are excluded from timing summaries and should be reviewed as data-quality issues.
+- **Pickup-to-delivery time:** `delivery_date - pickup_date` when available; otherwise uses `delivery_rto_date - pickup_date`, in calendar days. Negative differences are excluded from timing summaries.
+- **Delivery attempt count:** Uses recorded `attempt_count`; one attempt is preferred, two merits review, and three or more is flagged. Missing counts are not imputed.
 - **Daily manifesting:** Grouped by `manifested_date`, not status date.
 - **Historical status limitation:** The source files are latest-status extracts. They cannot prove what status a shipment had on a prior date. Uploaded snapshots are preserved separately.
 - **TAT:** Unit and exact business definition are unconfirmed; the dashboard deliberately does not label it hours/days.
