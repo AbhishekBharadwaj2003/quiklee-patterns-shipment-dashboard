@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from analytics import BRANDS, normalize_dataset, kpis, brand_summary, courier_summary, state_courier_summary, daily_manifest_summary, recommendation_rules, forecast_daily_volume
-from database import init_db, upsert_current, load_current, load_snapshot, import_upload, upload_history
+from database import init_db, upsert_current, load_current, load_snapshot, import_upload, upload_history, list_brands, add_brand
 from reports import executive_pdf, excel_bytes
 
 BASE=Path(__file__).resolve().parent
@@ -48,6 +48,9 @@ def current_data():
     else: df["manifest_date"]=pd.to_datetime(df["manifest_date"],errors="coerce").dt.normalize()
     return df
 
+init_db()
+BRANDS[:] = list_brands()
+
 try:
     data=current_data()
 except Exception as e:
@@ -80,7 +83,7 @@ with st.sidebar:
     st.divider()
     page=st.radio("Navigation",["Executive Overview","Brand Analysis","Courier Performance","State-wise Analysis","AI Recommendations","Forecasting","Dataset Upload & Reports"],label_visibility="collapsed")
     st.divider()
-    brands_available=[b for b in BRANDS if b in set(data.get("Brand",pd.Series(dtype=str)).dropna())]
+    brands_available=BRANDS.copy()
     selected_brands=st.multiselect("Brands",brands_available,default=brands_available)
     date_basis=st.selectbox("Date view",["Manifesting date","Uploaded snapshot date"],help="Manifesting date filters shipment cohorts. Uploaded snapshot date shows the exact records stored for that upload date.")
     if date_basis=="Manifesting date":
@@ -399,6 +402,26 @@ elif page=="Forecasting":
         st.download_button("Download forecast CSV",future.to_csv(index=False).encode("utf-8-sig"),"shipment_forecast.csv","text/csv")
 
 elif page=="Dataset Upload & Reports":
+    st.subheader("Brand management")
+    st.caption("Add a brand once here. It will become available in dashboard filters, upload form, and brand-specific analysis selectors.")
+    with st.form("add_brand_form", clear_on_submit=True):
+        new_brand_name = st.text_input("Add a brand", placeholder="Enter new brand name")
+        add_brand_submitted = st.form_submit_button("Add brand", type="primary")
+    if add_brand_submitted:
+        try:
+            created, canonical_name = add_brand(new_brand_name)
+            BRANDS[:] = list_brands()
+            if created:
+                st.success(f"Added brand: {canonical_name}. It is now available across dashboard sections. Upload its dataset to populate its metrics.")
+            else:
+                st.info(f"{canonical_name} is already registered.")
+            st.rerun()
+        except ValueError as e:
+            st.error(str(e))
+        except Exception as e:
+            st.error(f"Could not add brand: {e}")
+
+    st.divider()
     st.subheader("Upload daily dataset")
     st.warning("Choose the date the file represents. The upload is stored as an immutable snapshot and its shipment IDs update the current-state table. A reporting date does not automatically reconstruct historical statuses unless the file truly represents that snapshot.")
     with st.form("upload_form",clear_on_submit=False):
