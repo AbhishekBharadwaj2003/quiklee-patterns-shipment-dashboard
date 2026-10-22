@@ -11,7 +11,7 @@ from __future__ import annotations
 import pandas as pd
 import numpy as np
 
-BRANDS = ["Freely", "Kotart", "BigBearFarms"]
+BRANDS = ["Freely", "Kotart", "BigBearFarms"]  # Updated in place from the persisted registry at app startup.
 DELIVERED = "Delivered"
 RTO = "RTO Delivered"
 CANCELLED = "Cancelled"
