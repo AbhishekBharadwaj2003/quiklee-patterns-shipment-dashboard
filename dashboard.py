@@ -19,8 +19,8 @@ st.markdown("""<style>
 /* Bring sidebar content closer to the top, matching the compact reference layout. */
 [data-testid="stSidebar"] > div:first-child{padding-top:0 !important}
 [data-testid="stSidebar"] [data-testid="stSidebarContent"]{padding-top:0 !important}
-[data-testid="stSidebar"] [data-testid="stSidebarHeader"]{height:0; min-height:0; padding:0; margin:0}
-[data-testid="stSidebar"] [data-testid="stSidebarHeader"] button{top:.25rem}
+[data-testid="stSidebar"] [data-testid="stSidebarHeader"]{height:0; min-height:0; padding:0; margin:0; position:relative}
+[data-testid="stSidebar"] [data-testid="stSidebarHeader"] button{top:.75rem !important; transform:translateY(10px) !important; z-index:1000}
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h1{margin-top:0;margin-bottom:.25rem;font-size:1.65rem}
 [data-testid="stSidebar"] [data-testid="stCaptionContainer"]{margin-top:-.15rem;margin-bottom:.25rem}
 [data-testid="stSidebar"] hr{margin:.65rem 0}
