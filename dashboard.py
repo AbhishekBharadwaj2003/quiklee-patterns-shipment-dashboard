@@ -224,7 +224,9 @@ def show_attempt_distribution(df, title_prefix=""):
     work=df.copy()
     work["_attempts"]=pd.to_numeric(work["attempt_count"],errors="coerce")
     status=work["shipment_status"].astype("string").str.strip()
-    delivered=work[status.eq("Delivered") & work["_attempts"].gt(0)].copy()
+    delivered_status=work[status.eq("Delivered")].copy()
+    delivered_missing=int(delivered_status["_attempts"].isna().sum() + delivered_status["_attempts"].le(0).sum())
+    delivered=delivered_status[delivered_status["_attempts"].gt(0)].copy()
     if not delivered.empty:
         delivered["_attempt_bucket"]=pd.cut(
             delivered["_attempts"],
@@ -240,7 +242,7 @@ def show_attempt_distribution(df, title_prefix=""):
                    text="Delivered shipments"),
             use_container_width=True,
         )
-        st.caption(f"Counts include only shipments with status Delivered and a valid recorded attempt_count. {int(delivered['_attempts'].isna().sum())} delivered records with missing attempt counts are not represented.")
+        st.caption(f"Counts include only shipments with status Delivered and a valid positive recorded attempt_count. {delivered_missing} delivered records with missing or non-positive counts are not represented.")
     else:
         st.info("No successfully delivered shipments with a valid attempt_count are available for this selection.")
     repeated=work[~status.eq("Delivered") & work["_attempts"].ge(2)].copy()
