@@ -18,7 +18,7 @@ def connect(db_path: Path | str = DB_PATH):
 def init_db(db_path: Path | str = DB_PATH):
     with connect(db_path) as c:
         c.executescript('''
-        CREATE TABLE IF NOT EXISTS shipments_current (
+        CREATE TABLE IF NOT EXISTS brand_registry (\n          brand TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);\n        CREATE TABLE IF NOT EXISTS shipments_current (
           brand TEXT NOT NULL, shipment_id TEXT NOT NULL, manifested_date TEXT,
           shipment_status TEXT, courier_name TEXT, drop_location_state TEXT,
           record_json TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -37,6 +37,38 @@ def init_db(db_path: Path | str = DB_PATH):
         CREATE INDEX IF NOT EXISTS idx_current_manifested ON shipments_current(manifested_date);
         CREATE INDEX IF NOT EXISTS idx_snapshots_date ON shipment_snapshots(brand, reporting_date);
         ''')
+
+
+DEFAULT_BRANDS = ["Freely", "Kotart", "BigBearFarms"]
+
+
+def list_brands(db_path: Path | str = DB_PATH) -> list[str]:
+    """Return registered brand names in stable insertion order."""
+    with connect(db_path) as c:
+        c.executemany(
+            "INSERT OR IGNORE INTO brand_registry(brand) VALUES(?)",
+            [(brand,) for brand in DEFAULT_BRANDS],
+        )
+        rows = c.execute(
+            "SELECT brand FROM brand_registry ORDER BY created_at, brand COLLATE NOCASE"
+        ).fetchall()
+    stored = [row[0] for row in rows]
+    return DEFAULT_BRANDS.copy() + [b for b in stored if b not in DEFAULT_BRANDS]
+
+
+def add_brand(brand: str, db_path: Path | str = DB_PATH) -> tuple[bool, str]:
+    """Register a new brand name. Returns (created, canonical_name)."""
+    name = " ".join(str(brand).strip().split())
+    if not name:
+        raise ValueError("Enter a brand name.")
+    if len(name) > 80:
+        raise ValueError("Brand name must be 80 characters or fewer.")
+    existing = {b.casefold(): b for b in list_brands(db_path)}
+    if name.casefold() in existing:
+        return False, existing[name.casefold()]
+    with connect(db_path) as c:
+        c.execute("INSERT INTO brand_registry(brand) VALUES(?)", (name,))
+    return True, name
 
 
 def _json_value(v):
