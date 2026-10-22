@@ -16,11 +16,20 @@ def executive_pdf(df: pd.DataFrame, brand_label: str, period_label: str) -> byte
     story.append(Spacer(1,6*mm))
     m=kpis(df)
     rows=[["Metric","Value"], ["Manifested shipment records",str(m['total'])], ["Delivered",str(m['delivered'])], ["RTO Delivered",str(m['rto'])], ["Cancelled",str(m['cancelled'])], ["Other / unresolved statuses",str(m['other'])], ["Delivery rate among completed outcomes", "N/A" if pd.isna(m['delivery_rate']) else f"{m['delivery_rate']:.2f}%"], ["RTO rate among completed outcomes", "N/A" if pd.isna(m['rto_rate']) else f"{m['rto_rate']:.2f}%"], ["Cancellation share of all selected records", "N/A" if pd.isna(m['cancellation_share']) else f"{m['cancellation_share']:.2f}%"], ["Mean TAT (unit unconfirmed)", "N/A" if pd.isna(m['tat_mean']) else f"{m['tat_mean']:.2f}"]]
+    rows.extend([
+        ["Mean manifest-to-pickup (days)", "N/A" if pd.isna(m["manifest_to_pickup_mean_days"]) else f"{m['manifest_to_pickup_mean_days']:.2f}"],
+        ["Median manifest-to-pickup (days)", "N/A" if pd.isna(m["manifest_to_pickup_median_days"]) else f"{m['manifest_to_pickup_median_days']:.2f}"],
+        ["Mean pickup-to-delivery (days)", "N/A" if pd.isna(m["pickup_to_delivery_mean_days"]) else f"{m['pickup_to_delivery_mean_days']:.2f}"],
+        ["Median pickup-to-delivery (days)", "N/A" if pd.isna(m["pickup_to_delivery_median_days"]) else f"{m['pickup_to_delivery_median_days']:.2f}"],
+        ["Mean recorded delivery attempts", "N/A" if pd.isna(m["attempt_count_mean"]) else f"{m['attempt_count_mean']:.2f}"],
+        ["First-attempt shipments (%)", "N/A" if pd.isna(m["first_attempt_delivery_share"]) else f"{m['first_attempt_delivery_share']:.2f}%"],
+        ["Shipments with 3+ attempts", str(m["high_attempt_shipments"])],
+    ])
     t=Table(rows,colWidths=[100*mm,65*mm],repeatRows=1)
     t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#14213D')),('TEXTCOLOR',(0,0),(-1,0),colors.white),('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('GRID',(0,0),(-1,-1),.4,colors.lightgrey),('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#F4F7FB')]),('PADDING',(0,0),(-1,-1),6)]))
     story.append(t); story.append(Spacer(1,5*mm))
     story.append(Paragraph("Metric definitions and limitations",styles["Heading2"]))
-    story.append(Paragraph("Delivery and RTO rates use Delivered + RTO Delivered as the denominator. Cancelled and other statuses are excluded from these completed-outcome rates and shown separately. These rates describe the latest statuses in the selected records, not necessarily historical status as of each manifest date. TAT units have not been confirmed. The report is descriptive and does not establish courier causation.",styles["BodyText"]))
+    story.append(Paragraph("Delivery and RTO rates use Delivered + RTO Delivered as the denominator. Cancelled and other statuses are excluded from these completed-outcome rates and shown separately. These rates describe the latest statuses in the selected records, not necessarily historical status as of each manifest date. TAT units have not been confirmed. The two new durations are calendar-day differences; missing values remain unavailable and negative differences are excluded from timing summaries. Attempt-count summaries use recorded attempt_count values only. The report is descriptive and does not establish courier causation.",styles["BodyText"]))
     doc.build(story); return buf.getvalue()
 
 
