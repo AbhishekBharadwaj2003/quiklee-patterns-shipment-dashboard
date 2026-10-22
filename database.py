@@ -122,7 +122,7 @@ def load_current(db_path: Path | str = DB_PATH) -> pd.DataFrame:
         rows=c.execute("SELECT record_json FROM shipments_current").fetchall()
     if not rows: return pd.DataFrame()
     df=pd.DataFrame([json.loads(r[0]) for r in rows])
-    for col in ["manifested_date","manifest_date","latest_status_date","delivery_rto_date","pickup_date","edd","pdd","first_attempt_date"]:
+    for col in ["manifested_date","manifest_date","latest_status_date","delivery_date","delivery_rto_date","pickup_date","edd","pdd","first_attempt_date"]:
         if col in df: df[col]=pd.to_datetime(df[col],errors="coerce")
     for col in ["tat","attempt_count","pickup_attempts","rto_attempts","est_shipping_charge","cod_amount","total_amount","tat_breached"]:
         if col in df: df[col]=pd.to_numeric(df[col],errors="coerce")
