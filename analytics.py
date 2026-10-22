@@ -16,7 +16,7 @@ DELIVERED = "Delivered"
 RTO = "RTO Delivered"
 CANCELLED = "Cancelled"
 REQUIRED_COLUMNS = ["shipment_id", "manifested_date", "shipment_status", "courier_name", "drop_location_state"]
-DATE_COLUMNS = ["invoice_date", "manifested_date", "reached_at_dc_date", "latest_status_date", "first_attempt_date", "pickup_date", "delivery_rto_date", "edd", "pdd", "first_ndr_date", "second_ndr_date", "third_ndr_date", "latest_ndr_date", "first_npr_date", "second_npr_date", "third_npr_date", "latest_npr_date", "rto_initiation_date", "last_attempt_date", "first_pickup_attempt_date", "second_pickup_attempt_date", "third_pickup_attempt_date", "last_pickup_attempt_date"]
+DATE_COLUMNS = ["invoice_date", "manifested_date", "reached_at_dc_date", "latest_status_date", "first_attempt_date", "pickup_date", "delivery_date", "delivery_rto_date", "edd", "pdd", "first_ndr_date", "second_ndr_date", "third_ndr_date", "latest_ndr_date", "first_npr_date", "second_npr_date", "third_npr_date", "latest_npr_date", "rto_initiation_date", "last_attempt_date", "first_pickup_attempt_date", "second_pickup_attempt_date", "third_pickup_attempt_date", "last_pickup_attempt_date"]
 STATE_ALIASES = {
     "MAHARASHTRA":"MH", "RAJASTHAN":"RJ", "LADAKH":"LA", "CHANDIGARH":"CH",
     "PUDUCHERRY":"PY", "PONDICHERRY":"PY", "ANDHRA PRADESH":"AP", "KARNATAKA":"KA",
@@ -71,6 +71,9 @@ def normalize_dataset(df: pd.DataFrame, brand: str, source: str = "upload") -> t
     if "payment_type" in out.columns:
         out["payment_type"] = _normalize_text(out["payment_type"], "Unknown").str.upper()
     out["manifest_date"] = out["manifested_date"].dt.normalize()
+    delivery_col = "delivery_date" if "delivery_date" in out.columns and out["delivery_date"].notna().any() else "delivery_rto_date"
+    out["manifest_to_pickup_days"] = (out["pickup_date"].dt.normalize() - out["manifested_date"].dt.normalize()).dt.total_seconds() / 86400 if "pickup_date" in out else np.nan
+    out["pickup_to_delivery_days"] = (out[delivery_col].dt.normalize() - out["pickup_date"].dt.normalize()).dt.total_seconds() / 86400 if delivery_col in out.columns and "pickup_date" in out else np.nan
     issues = []
     for idx, row in out.iterrows():
         sid = row.get("shipment_id", "")
@@ -94,7 +97,7 @@ def kpis(df: pd.DataFrame) -> dict:
     if df.empty:
         return {"total":0,"delivered":0,"rto":0,"cancelled":0,"other":0,"completed":0,
                 "delivery_rate":np.nan,"rto_rate":np.nan,"cancellation_share":np.nan,
-                "tat_mean":np.nan,"tat_median":np.nan,"tat_missing":0,"multiple_attempts":0,
+                "manifest_to_pickup_mean_days":np.nan,"manifest_to_pickup_median_days":np.nan,"manifest_to_pickup_missing":0,"pickup_to_delivery_mean_days":np.nan,"pickup_to_delivery_median_days":np.nan,"pickup_to_delivery_missing":0,"attempt_count_mean":np.nan,"first_attempt_delivery_share":np.nan,"high_attempt_shipments":0,"tat_mean":np.nan,"tat_median":np.nan,"tat_missing":0,"multiple_attempts":0,
                 "multiple_attempt_share":np.nan,"tat_breach_count":0,"tat_breach_rate":np.nan,
                 "shipping_cost":np.nan,"cost_per_shipment":np.nan,"cod_exposure":np.nan}
     status = df["shipment_status"].astype("string").str.strip()
@@ -104,6 +107,8 @@ def kpis(df: pd.DataFrame) -> dict:
     cancelled = int(status.eq(CANCELLED).sum())
     completed = delivered + rto
     tat = pd.to_numeric(df["tat"], errors="coerce") if "tat" in df else pd.Series(dtype=float)
+    manifest_pickup = pd.to_numeric(df["manifest_to_pickup_days"], errors="coerce") if "manifest_to_pickup_days" in df else pd.Series(dtype=float)
+    pickup_delivery = pd.to_numeric(df["pickup_to_delivery_days"], errors="coerce") if "pickup_to_delivery_days" in df else pd.Series(dtype=float)
     attempts = pd.to_numeric(df["attempt_count"], errors="coerce") if "attempt_count" in df else pd.Series(dtype=float)
     breached = pd.to_numeric(df["tat_breached"], errors="coerce") if "tat_breached" in df else pd.Series(dtype=float)
     cost = pd.to_numeric(df["est_shipping_charge"], errors="coerce") if "est_shipping_charge" in df else pd.Series(dtype=float)
@@ -113,6 +118,15 @@ def kpis(df: pd.DataFrame) -> dict:
     return {
         "total":total,"delivered":delivered,"rto":rto,"cancelled":cancelled,"other":other,"completed":completed,
         "delivery_rate":pct(delivered,completed),"rto_rate":pct(rto,completed),"cancellation_share":pct(cancelled,total),
+        "manifest_to_pickup_mean_days":float(manifest_pickup[manifest_pickup >= 0].mean()) if (manifest_pickup >= 0).any() else np.nan,
+        "manifest_to_pickup_median_days":float(manifest_pickup[manifest_pickup >= 0].median()) if (manifest_pickup >= 0).any() else np.nan,
+        "manifest_to_pickup_missing":int(manifest_pickup.isna().sum()) if len(manifest_pickup) else total,
+        "pickup_to_delivery_mean_days":float(pickup_delivery[pickup_delivery >= 0].mean()) if (pickup_delivery >= 0).any() else np.nan,
+        "pickup_to_delivery_median_days":float(pickup_delivery[pickup_delivery >= 0].median()) if (pickup_delivery >= 0).any() else np.nan,
+        "pickup_to_delivery_missing":int(pickup_delivery.isna().sum()) if len(pickup_delivery) else total,
+        "attempt_count_mean":float(attempts[attempts > 0].mean()) if (attempts > 0).any() else np.nan,
+        "first_attempt_delivery_share":pct((attempts == 1).sum(), attempts.notna().sum()) if attempts.notna().any() else np.nan,
+        "high_attempt_shipments":int((attempts >= 3).sum()) if attempts.notna().any() else 0,
         "tat_mean":float(tat.mean()) if tat.notna().any() else np.nan,
         "tat_median":float(tat.median()) if tat.notna().any() else np.nan,
         "tat_missing":int(tat.isna().sum()) if len(tat) else total,
@@ -138,7 +152,7 @@ def courier_summary(df: pd.DataFrame, min_volume: int = 30) -> pd.DataFrame:
     rows=[]
     for (brand,courier), g in df.groupby(["Brand","courier_name"], dropna=False):
         m=kpis(g)
-        rows.append({"Brand":brand,"Courier":courier,"Shipments":m["total"],"Delivered":m["delivered"],"RTO":m["rto"],"Cancelled":m["cancelled"],"Other":m["other"],"Completed outcomes":m["completed"],"Delivery rate (%)":m["delivery_rate"],"RTO rate (%)":m["rto_rate"],"Cancellation share (%)":m["cancellation_share"],"Mean TAT (unit unconfirmed)":m["tat_mean"],"Median TAT (unit unconfirmed)":m["tat_median"],"Multiple-attempt share (%)":m["multiple_attempt_share"],"TAT breach rate (%)":m["tat_breach_rate"],"Meets minimum volume":m["total"]>=min_volume})
+        rows.append({"Brand":brand,"Courier":courier,"Shipments":m["total"],"Delivered":m["delivered"],"RTO":m["rto"],"Cancelled":m["cancelled"],"Other":m["other"],"Completed outcomes":m["completed"],"Delivery rate (%)":m["delivery_rate"],"RTO rate (%)":m["rto_rate"],"Cancellation share (%)":m["cancellation_share"],"Mean TAT (unit unconfirmed)":m["tat_mean"],"Median TAT (unit unconfirmed)":m["tat_median"],"Mean manifest-to-pickup (days)":m["manifest_to_pickup_mean_days"],"Median manifest-to-pickup (days)":m["manifest_to_pickup_median_days"],"Mean pickup-to-delivery (days)":m["pickup_to_delivery_mean_days"],"Median pickup-to-delivery (days)":m["pickup_to_delivery_median_days"],"Mean delivery attempts":m["attempt_count_mean"],"First-attempt shipments (%)":m["first_attempt_delivery_share"],"Shipments with 3+ attempts":m["high_attempt_shipments"],"Multiple-attempt share (%)":m["multiple_attempt_share"],"TAT breach rate (%)":m["tat_breach_rate"],"Meets minimum volume":m["total"]>=min_volume})
     return pd.DataFrame(rows)
 
 
@@ -146,7 +160,7 @@ def state_courier_summary(df: pd.DataFrame, min_volume: int = 10) -> pd.DataFram
     rows=[]
     for (brand,state,courier),g in df.groupby(["Brand","drop_location_state","courier_name"],dropna=False):
         m=kpis(g)
-        rows.append({"Brand":brand,"State":state,"Courier":courier,"Shipments":m["total"],"Delivered":m["delivered"],"RTO":m["rto"],"Cancelled":m["cancelled"],"Other":m["other"],"Completed outcomes":m["completed"],"Delivery rate (%)":m["delivery_rate"],"RTO rate (%)":m["rto_rate"],"Meets minimum volume":m["total"]>=min_volume})
+        rows.append({"Brand":brand,"State":state,"Courier":courier,"Shipments":m["total"],"Delivered":m["delivered"],"RTO":m["rto"],"Cancelled":m["cancelled"],"Other":m["other"],"Completed outcomes":m["completed"],"Delivery rate (%)":m["delivery_rate"],"RTO rate (%)":m["rto_rate"],"Mean manifest-to-pickup (days)":m["manifest_to_pickup_mean_days"],"Mean pickup-to-delivery (days)":m["pickup_to_delivery_mean_days"],"Mean delivery attempts":m["attempt_count_mean"],"Shipments with 3+ attempts":m["high_attempt_shipments"],"Meets minimum volume":m["total"]>=min_volume})
     return pd.DataFrame(rows)
 
 
