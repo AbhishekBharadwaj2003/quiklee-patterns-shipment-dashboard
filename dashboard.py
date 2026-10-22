@@ -216,6 +216,57 @@ def show_kpis(df):
     st.caption("Duration summaries exclude negative date differences. Missing dates and missing attempt counts are not imputed.")
 
 
+def show_attempt_distribution(df, title_prefix=""):
+    """Show attempt buckets for delivered shipments and separately flag unresolved/RTO repeats."""
+    if df.empty or "attempt_count" not in df.columns:
+        st.info("No recorded attempt-count data is available for this selection.")
+        return
+    work=df.copy()
+    work["_attempts"]=pd.to_numeric(work["attempt_count"],errors="coerce")
+    status=work["shipment_status"].astype("string").str.strip()
+    delivered=work[status.eq("Delivered") & work["_attempts"].gt(0)].copy()
+    if not delivered.empty:
+        delivered["_attempt_bucket"]=pd.cut(
+            delivered["_attempts"],
+            bins=[0,1,2,3,float("inf")],
+            labels=["1st attempt","2nd attempt","3rd attempt","More than 3 attempts"],
+            right=True,
+        )
+        distribution=(delivered["_attempt_bucket"].value_counts(sort=False)
+                      .rename_axis("Delivery attempt").reset_index(name="Delivered shipments"))
+        st.plotly_chart(
+            px.bar(distribution,x="Delivery attempt",y="Delivered shipments",
+                   title=f"{title_prefix}Successful deliveries by attempt count".strip(),
+                   text="Delivered shipments"),
+            use_container_width=True,
+        )
+        st.caption(f"Counts include only shipments with status Delivered and a valid recorded attempt_count. {int(delivered['_attempts'].isna().sum())} delivered records with missing attempt counts are not represented.")
+    else:
+        st.info("No successfully delivered shipments with a valid attempt_count are available for this selection.")
+    repeated=work[~status.eq("Delivered") & work["_attempts"].ge(2)].copy()
+    st.markdown("#### Repeated attempts needing attention")
+    if repeated.empty:
+        st.success("No non-delivered shipments with 2 or more recorded attempts in this selection.")
+    else:
+        repeated["Attention category"]=repeated.apply(
+            lambda row: "RTO" if str(row.get("shipment_status","")).strip()=="RTO Delivered"
+            else "Pending / other status",
+            axis=1,
+        )
+        summary=(repeated.groupby(["Attention category","shipment_status"],dropna=False)
+                 .size().rename("Shipments").reset_index()
+                 .sort_values("Shipments",ascending=False))
+        st.dataframe(summary,use_container_width=True,hide_index=True)
+        cols=st.columns(3)
+        cols[0].metric("Non-delivered repeated-attempt shipments",len(repeated))
+        cols[1].metric("RTO with 2+ attempts",int(repeated["shipment_status"].astype("string").str.strip().eq("RTO Delivered").sum()))
+        cols[2].metric("Pending/other with 2+ attempts",int((~repeated["shipment_status"].astype("string").str.strip().isin(["Delivered","RTO Delivered"])).sum()))
+        detail_cols=[c for c in ["Brand","shipment_id","shipment_status","courier_name","drop_location_state","attempt_count"] if c in repeated.columns]
+        if detail_cols:
+            with st.expander("View shipments needing attention"):
+                st.dataframe(repeated[detail_cols].sort_values("attempt_count",ascending=False),use_container_width=True,hide_index=True)
+
+
 def download_buttons(df,brand_label,period_label,prefix="quiklee"):
     st.download_button("Download cleaned CSV",df.to_csv(index=False).encode("utf-8-sig"),file_name=f"{prefix}_cleaned.csv",mime="text/csv")
     st.download_button("Download executive PDF",executive_pdf(df,brand_label,period_label),file_name=f"{prefix}_executive_summary.pdf",mime="application/pdf")
@@ -354,6 +405,8 @@ if page=="Executive Overview":
     for c,(label,key) in zip(tcols,[("Median manifest-to-pickup (days)","manifest_to_pickup_median_days"),("Median pickup-to-delivery (days)","pickup_to_delivery_median_days"),("First-attempt shipments (%)","first_attempt_delivery_share"),("Shipments with 3+ attempts","high_attempt_shipments")]):
         value=timing[key]
         c.metric(label,"N/A" if pd.isna(value) else f"{value:.2f}")
+    st.subheader("Delivery attempt distribution for selected date")
+    show_attempt_distribution(filtered)
     st.subheader("Brand-wise KPI comparison")
     bs=brand_summary(filtered)
     if not bs.empty:
@@ -381,7 +434,7 @@ elif page=="Brand Analysis":
         with b:
             status=df["shipment_status"].value_counts().rename_axis("Status").reset_index(name="Shipments")
             st.plotly_chart(px.bar(status,x="Status",y="Shipments",title="Latest shipment status counts"),use_container_width=True)
-        st.markdown("#### Timing and attempt-count distribution")
+        st.markdown("#### Timing distributions")
         ca,cb=st.columns(2)
         with ca:
             durations=df[["manifest_to_pickup_days","pickup_to_delivery_days"]].melt(var_name="Metric",value_name="Days")
@@ -390,11 +443,8 @@ elif page=="Brand Analysis":
             if not durations.empty:
                 st.plotly_chart(px.box(durations,x="Metric",y="Days",title="Shipment timing distributions"),use_container_width=True)
         with cb:
-            if "attempt_count" in df and pd.to_numeric(df["attempt_count"],errors="coerce").notna().any():
-                attempts=pd.to_numeric(df["attempt_count"],errors="coerce").dropna().value_counts().sort_index().rename_axis("Attempt count").reset_index(name="Shipments")
-                st.plotly_chart(px.bar(attempts,x="Attempt count",y="Shipments",title="Delivery attempt count"),use_container_width=True)
-            else:
-                st.info("No recorded attempt_count values in this selection.")
+            st.caption("Attempt distribution is shown separately below, with delivered shipments distinguished from RTO and unresolved shipments.")
+        show_attempt_distribution(df, f"{brand}: ")
         st.markdown("#### Courier breakdown")
         st.dataframe(courier_summary(df),use_container_width=True,hide_index=True)
         st.markdown("#### State breakdown")
