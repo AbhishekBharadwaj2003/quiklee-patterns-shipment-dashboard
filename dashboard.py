@@ -53,6 +53,25 @@ def bootstrap():
         upsert_current(seeded)
 
 
+def add_operational_metrics(df):
+    """Ensure legacy current records and uploaded snapshots also expose the new derived metrics."""
+    if df.empty:
+        return df
+    for col in ["manifested_date","pickup_date","delivery_date","delivery_rto_date"]:
+        if col in df:
+            df[col]=pd.to_datetime(df[col],errors="coerce")
+    delivery_col="delivery_date" if "delivery_date" in df.columns and df["delivery_date"].notna().any() else "delivery_rto_date"
+    if "manifested_date" in df and "pickup_date" in df:
+        df["manifest_to_pickup_days"]=(df["pickup_date"].dt.normalize()-df["manifested_date"].dt.normalize()).dt.total_seconds()/86400
+    else:
+        df["manifest_to_pickup_days"]=np.nan
+    if delivery_col in df and "pickup_date" in df:
+        df["pickup_to_delivery_days"]=(df[delivery_col].dt.normalize()-df["pickup_date"].dt.normalize()).dt.total_seconds()/86400
+    else:
+        df["pickup_to_delivery_days"]=np.nan
+    return df
+
+
 def current_data():
     bootstrap()
     df=load_current()
@@ -60,7 +79,7 @@ def current_data():
     if "manifest_date" not in df.columns:
         df["manifest_date"]=pd.to_datetime(df["manifested_date"],errors="coerce").dt.normalize()
     else: df["manifest_date"]=pd.to_datetime(df["manifest_date"],errors="coerce").dt.normalize()
-    return df
+    return add_operational_metrics(df)
 
 init_db()
 BRANDS[:] = list_brands()
@@ -141,7 +160,7 @@ with st.sidebar:
 
 analysis_data=data
 if date_basis=="Uploaded snapshot date" and selected_date is not None:
-    analysis_data=load_snapshot(selected_date)
+    analysis_data=add_operational_metrics(load_snapshot(selected_date))
     if analysis_data.empty:
         st.warning("No snapshot records were found for the selected reporting date.")
     if "manifest_date" not in analysis_data.columns and "manifested_date" in analysis_data.columns:
