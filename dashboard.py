@@ -16,7 +16,10 @@ st.set_page_config(page_title="Quiklee | Patterns Intelligence",page_icon="📦"
 st.markdown("""<style>
 .block-container{padding-top:1.3rem;padding-bottom:2rem}
 [data-testid="stSidebar"]{border-right:1px solid rgba(120,130,150,.2)}
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h1{margin-top:.15rem;margin-bottom:.35rem;font-size:1.65rem}
+/* Bring sidebar content closer to the top, matching the compact reference layout. */
+[data-testid="stSidebar"] > div:first-child{padding-top:.5rem}
+[data-testid="stSidebar"] [data-testid="stSidebarContent"]{padding-top:.5rem}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h1{margin-top:0;margin-bottom:.25rem;font-size:1.65rem}
 [data-testid="stSidebar"] [data-testid="stCaptionContainer"]{margin-top:-.15rem;margin-bottom:.25rem}
 [data-testid="stSidebar"] hr{margin:.65rem 0}
 [data-testid="stSidebar"] [data-testid="stRadio"]{gap:.15rem}
