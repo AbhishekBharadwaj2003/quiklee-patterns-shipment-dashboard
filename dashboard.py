@@ -2,6 +2,7 @@ from pathlib import Path
 from io import BytesIO
 import json
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import streamlit as st
 from analytics import BRANDS, normalize_dataset, kpis, brand_summary, courier_summary, state_courier_summary, daily_manifest_summary, recommendation_rules, forecast_daily_volume
