@@ -1,4 +1,4 @@
-# Quiklee Patterns Shipment Intelligence Dashboard — Task 2
+# Quiklee Patterns Shipment Intelligence Dashboard 
 
 A Streamlit application for brand-wise shipment analytics, courier/state comparisons, daily uploads and immutable snapshots, rule-based recommendations, a baseline forecast, and PDF/Excel exports. This is **internship Task 2**, separate from Task 1 (`quiklee-shipment-analytics`).
 
