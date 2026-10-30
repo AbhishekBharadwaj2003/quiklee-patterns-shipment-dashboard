@@ -533,20 +533,46 @@ elif page=="Dataset Upload & Reports":
             st.error(f"Could not add brand: {e}")
 
     st.divider()
-    st.subheader("Upload daily dataset")
-    st.warning("Choose the date the file represents. The upload is stored as an immutable snapshot and its shipment IDs update the current-state table. A reporting date does not automatically reconstruct historical statuses unless the file truly represents that snapshot.")
+    st.subheader("Upload dataset")
+    st.info("Upload a single-day snapshot or import only shipments manifested within a selected date range. A date-range upload is saved as one snapshot dated at the range end; it does not create separate historical status snapshots for every day.")
     with st.form("upload_form",clear_on_submit=False):
         brand=st.selectbox("Brand",BRANDS)
-        report_date=st.date_input("Dataset reporting date",value=pd.Timestamp("2026-09-30").date())
+        upload_mode=st.radio("Date selection",["Single reporting date","Manifested date range"],horizontal=True)
+        today=pd.Timestamp.today().normalize()
+        default_end=(today-pd.Timedelta(days=1)).date()
+        default_start=default_end.replace(day=1)
+        if upload_mode=="Single reporting date":
+            report_date=st.date_input("Dataset reporting date",value=default_end)
+            date_range=None
+        else:
+            date_range=st.date_input("Select manifested date range",value=(default_start,default_end),help="Only rows whose manifested date falls within this inclusive range will be imported.")
+            report_date=date_range[1] if isinstance(date_range,(tuple,list)) and len(date_range)==2 else default_end
         file=st.file_uploader("Upload Excel or CSV",type=["xlsx","xls","csv"])
         allow_issues=st.checkbox("Allow import when warnings exist (errors are always blocked)",value=False)
         submitted=st.form_submit_button("Validate and import",type="primary")
     if submitted:
         if file is None: st.error("Select a file first.")
+        elif upload_mode=="Manifested date range" and (not isinstance(date_range,(tuple,list)) or len(date_range)!=2):
+            st.error("Select both a start date and an end date.")
+        elif upload_mode=="Manifested date range" and date_range[0]>date_range[1]:
+            st.error("The start date must be on or before the end date.")
         else:
             try:
                 raw=pd.read_csv(file) if file.name.lower().endswith(".csv") else pd.read_excel(file)
                 clean,issues=normalize_dataset(raw,brand,file.name)
+                if upload_mode=="Manifested date range":
+                    date_col="manifest_date" if "manifest_date" in clean.columns else "manifested_date"
+                    if date_col not in clean.columns:
+                        st.error("Date-range upload requires a manifested_date column in the dataset.")
+                        st.stop()
+                    manifest_dates=pd.to_datetime(clean[date_col],errors="coerce").dt.normalize()
+                    start_ts=pd.Timestamp(date_range[0])
+                    end_ts=pd.Timestamp(date_range[1])
+                    clean=clean.loc[manifest_dates.between(start_ts,end_ts,inclusive="both")].copy()
+                    if clean.empty:
+                        st.error("No shipments have a manifested date inside the selected range. Check the date range and source data.")
+                        st.stop()
+                    st.caption(f"Importing {len(clean):,} rows manifested from {date_range[0].strftime('%d %b %Y')} to {date_range[1].strftime('%d %b %Y')}. Snapshot/reporting date: {report_date.strftime('%d %b %Y')}.")
                 st.session_state["last_upload_issues"]=issues
                 errors=issues[issues["severity"].eq("error")] if not issues.empty else issues
                 if not issues.empty: st.dataframe(issues,use_container_width=True,hide_index=True)
